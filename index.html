@@ -706,6 +706,19 @@ function toggleChk(el){ el.classList.toggle('sel'); }
   let calYear  = now.getFullYear();
   let calMonth = now.getMonth() + 1;
 
+  // 如果當月剩餘開放日已全部過去，自動跳到下個月
+  const daysInCurrentMonth = new Date(calYear, calMonth, 0).getDate();
+  const OPEN_DAYS = [1,2,3,4,6];
+  let hasRemainingDays = false;
+  for(let d = now.getDate(); d <= daysInCurrentMonth; d++){
+    const dow = new Date(calYear, calMonth-1, d).getDay();
+    if(OPEN_DAYS.includes(dow)){ hasRemainingDays = true; break; }
+  }
+  if(!hasRemainingDays){
+    calMonth++;
+    if(calMonth > 12){ calMonth = 1; calYear++; }
+  }
+
   function updateHeader(){
     const el = document.querySelector('.cal-header-bar');
     if(el) el.textContent = '✧ ' + calYear + ' 年 ' + calMonth + ' 月　開放日期如下（灰色為老師忙碌日）';
