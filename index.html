@@ -1541,37 +1541,7 @@ function pickSvc(el,name,price){
 // ── Checkbox toggle
 function toggleChk(el){ el.classList.toggle('sel'); }
 
-// ── Calendar (April 2025: DOW of 1st = Tuesday = 2)
-(function buildCal(){
-  const OPEN=[1,2,3,4,6]; // Mon-Thu + Sat
-  const wdLabels=['日','一','二','三','四','五','六'];
-  const wdEl=document.getElementById('calWd');
-  wdLabels.forEach((n,i)=>{
-    const d=document.createElement('div');
-    d.className='cal-wd'+(OPEN.includes(i)?' avail':'');
-    d.textContent=n; wdEl.appendChild(d);
-  });
-  const grid=document.getElementById('calGrid');
-  const firstDow=2, days=30;
-  for(let i=0;i<firstDow;i++){
-    const e=document.createElement('div'); e.className='cal-cell'; grid.appendChild(e);
-  }
-  for(let d=1;d<=days;d++){
-    const dow=(firstDow+d-1)%7;
-    const isOpen=OPEN.includes(dow);
-    const cell=document.createElement('div');
-    cell.className='cal-cell'+(isOpen?' open':'');
-    cell.textContent=d;
-    if(isOpen){
-      cell.onclick=function(){
-        const key='4/'+d;
-        if(state.pickedDates.has(key)){ state.pickedDates.delete(key); this.classList.remove('picked'); }
-        else{ state.pickedDates.add(key); this.classList.add('picked'); }
-      };
-    }
-    grid.appendChild(cell);
-  }
-})();
+// ── Calendar: 由上方 initCal() 處理
 
 // ── Step 5 summary
 function buildSummary(){
