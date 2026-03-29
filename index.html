@@ -557,11 +557,7 @@ body { font-family:'Noto Serif TC',serif; background:#F2EBE0; color:#3A2A1C; ove
     </p>
 
     <div class="cal-section-label">選擇方便的日期（可複選）<span class="req"> *</span></div>
-    <div class="cal-wrap">
-      <div class="cal-header-bar">✧ 本月（四月）開放日期如下，每月更新</div>
-      <div class="cal-weekdays" id="calWd"></div>
-      <div class="cal-grid" id="calGrid"></div>
-    </div>
+    <div id="calContainer"></div>
 
     <div class="cal-section-label">偏好時段（可複選）<span class="req"> *</span></div>
     <div class="time-opts">
@@ -700,61 +696,64 @@ function toggleChk(el){ el.classList.toggle('sel'); }
 
 // ── Calendar（動態版：自動抓當月 + Google Calendar 忙碌日）──
 (function initCal(){
-  const OPEN = [1,2,3,4,6]; // 一二三四六（週五、週日不開放）
+  const OPEN = [1,2,3,4,6];
   const wdLabels = ['日','一','二','三','四','五','六'];
   const now = new Date();
-  let calYear  = now.getFullYear();
-  let calMonth = now.getMonth() + 1;
+  const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-  // 如果當月剩餘開放日已全部過去，自動跳到下個月
-  const daysInCurrentMonth = new Date(calYear, calMonth, 0).getDate();
-  const OPEN_DAYS = [1,2,3,4,6];
-  let hasRemainingDays = false;
-  for(let d = now.getDate(); d <= daysInCurrentMonth; d++){
-    const dow = new Date(calYear, calMonth-1, d).getDay();
-    if(OPEN_DAYS.includes(dow)){ hasRemainingDays = true; break; }
-  }
-  if(!hasRemainingDays){
-    calMonth++;
-    if(calMonth > 12){ calMonth = 1; calYear++; }
-  }
-
-  function updateHeader(){
-    const el = document.querySelector('.cal-header-bar');
-    if(el) el.textContent = '✧ ' + calYear + ' 年 ' + calMonth + ' 月　開放日期如下（灰色為老師忙碌日）';
+  // 產生連續三個月的 {year, month}
+  function getThreeMonths(){
+    const months = [];
+    let y = now.getFullYear();
+    let m = now.getMonth() + 1;
+    for(let i = 0; i < 3; i++){
+      months.push({ year: y, month: m });
+      m++;
+      if(m > 12){ m = 1; y++; }
+    }
+    return months;
   }
 
-  function renderWeekdays(){
-    const wdEl = document.getElementById('calWd');
-    wdEl.innerHTML = '';
+  // 建立單一月份的 DOM
+  function buildMonthBlock(y, m, busySet){
+    const wrap = document.createElement('div');
+    wrap.className = 'cal-wrap';
+    wrap.style.marginBottom = '24px';
+
+    // header
+    const header = document.createElement('div');
+    header.className = 'cal-header-bar';
+    header.textContent = '✧ ' + y + ' 年 ' + m + ' 月　（灰色為老師忙碌日）';
+    wrap.appendChild(header);
+
+    // weekday labels
+    const wdRow = document.createElement('div');
+    wdRow.className = 'cal-weekdays';
     wdLabels.forEach((n,i)=>{
       const d = document.createElement('div');
       d.className = 'cal-wd' + (OPEN.includes(i) ? ' avail' : '');
       d.textContent = n;
-      wdEl.appendChild(d);
+      wdRow.appendChild(d);
     });
-  }
+    wrap.appendChild(wdRow);
 
-  function renderGrid(busySet){
-    const grid = document.getElementById('calGrid');
-    grid.innerHTML = '';
-    state.pickedDates.clear();
+    // grid
+    const grid = document.createElement('div');
+    grid.className = 'cal-grid';
+    const firstDow    = new Date(y, m-1, 1).getDay();
+    const daysInMonth = new Date(y, m, 0).getDate();
 
-    const firstDow    = new Date(calYear, calMonth-1, 1).getDay();
-    const daysInMonth = new Date(calYear, calMonth, 0).getDate();
-    const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-    for(let i=0;i<firstDow;i++){
+    for(let i = 0; i < firstDow; i++){
       const e = document.createElement('div');
       e.className = 'cal-cell';
       grid.appendChild(e);
     }
 
-    for(let d=1; d<=daysInMonth; d++){
+    for(let d = 1; d <= daysInMonth; d++){
       const dow    = (firstDow + d - 1) % 7;
       const isOpen = OPEN.includes(dow);
       const isBusy = busySet.has(d);
-      const isPast = new Date(calYear, calMonth-1, d) < todayMidnight;
+      const isPast = new Date(y, m-1, d) < todayMidnight;
 
       const cell = document.createElement('div');
       cell.textContent = d;
@@ -766,9 +765,9 @@ function toggleChk(el){ el.classList.toggle('sel'); }
         cell.title = '此日老師已有安排';
       } else {
         cell.className = 'cal-cell open';
-        cell.onclick = (function(day){
+        cell.onclick = (function(year, month, day){
           return function(){
-            const key = calMonth + '/' + day;
+            const key = year + '/' + month + '/' + day;
             if(state.pickedDates.has(key)){
               state.pickedDates.delete(key);
               this.classList.remove('picked');
@@ -777,15 +776,17 @@ function toggleChk(el){ el.classList.toggle('sel'); }
               this.classList.add('picked');
             }
           };
-        })(d);
+        })(y, m, d);
       }
       grid.appendChild(cell);
     }
+    wrap.appendChild(grid);
+    return wrap;
   }
 
-  async function fetchBusyDates(){
+  async function fetchBusyDates(y, m){
     try {
-      const res  = await fetch('/api/busy-dates?year=' + calYear + '&month=' + calMonth);
+      const res  = await fetch('/api/busy-dates?year=' + y + '&month=' + m);
       const data = await res.json();
       return new Set(data.busyDates || []);
     } catch(e){
@@ -794,10 +795,16 @@ function toggleChk(el){ el.classList.toggle('sel'); }
   }
 
   async function build(){
-    updateHeader();
-    renderWeekdays();
-    const busySet = await fetchBusyDates();
-    renderGrid(busySet);
+    const container = document.getElementById('calContainer');
+    container.innerHTML = '';
+    state.pickedDates.clear();
+
+    const months = getThreeMonths();
+    for(const { year, month } of months){
+      const busySet = await fetchBusyDates(year, month);
+      const block = buildMonthBlock(year, month, busySet);
+      container.appendChild(block);
+    }
   }
 
   build();
